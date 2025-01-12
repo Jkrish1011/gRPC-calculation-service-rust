@@ -1,4 +1,5 @@
 // Created by the tonic package automatically
+use proto::admin_server::{Admin, AdminServer};
 use proto::calculator_server::{Calculator, CalculatorServer};
 use tonic::transport::Server;
 
@@ -9,8 +10,37 @@ mod proto {
         tonic::include_file_descriptor_set!("calculator_descriptor");
 }
 
+type State = std::sync::Arc<tokio::sync::RwLock<u64>>;
+
 #[derive(Debug, Default)]
-struct CalculatorService {}
+struct CalculatorService {
+    state: State,
+}
+impl CalculatorService {
+    async fn increment_counter(&self) {
+        let mut count: tokio::sync::RwLockWriteGuard<'_, u64> = self.state.write().await;
+        *count += 1;
+        println!("Request count: {}", *count);
+    }
+}
+
+#[derive(Default, Debug)]
+struct AdminService {
+    state: State,
+}
+
+#[tonic::async_trait]
+impl Admin for AdminService {
+    async fn get_request_count(
+        &self,
+        _request: tonic::Request<proto::GetCountRequest>,
+    ) -> Result<tonic::Response<proto::CounterResponse>, tonic::Status> {
+        let count = self.state.read().await;
+        let response = proto::CounterResponse { count: *count };
+
+        Ok(tonic::Response::new(response))
+    }
+}
 
 #[tonic::async_trait]
 impl Calculator for CalculatorService {
@@ -19,6 +49,8 @@ impl Calculator for CalculatorService {
         &self,
         request: tonic::Request<proto::CalculationRequest>,
     ) -> Result<tonic::Response<proto::CalculationResponse>, tonic::Status> {
+        self.increment_counter().await;
+
         println!("Got a Addition request: {:?}", request);
         let input = request.get_ref();
 
@@ -32,6 +64,7 @@ impl Calculator for CalculatorService {
         &self,
         request: tonic::Request<proto::CalculationRequest>,
     ) -> Result<tonic::Response<proto::CalculationResponse>, tonic::Status> {
+        self.increment_counter().await;
         println!("Got a division Request: {:?}", request);
 
         let input = request.get_ref();
@@ -51,7 +84,14 @@ impl Calculator for CalculatorService {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: std::net::SocketAddr = "[::1]:50001".parse()?;
 
-    let calc: CalculatorService = CalculatorService::default();
+    let state: std::sync::Arc<tokio::sync::RwLock<u64>> = State::default();
+    // Providing instance of state into both service so that they are working on the same state counter variable
+    let calc: CalculatorService = CalculatorService {
+        state: state.clone(),
+    };
+    let admin: AdminService = AdminService {
+        state: state.clone(),
+    };
 
     let service = tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(proto::FILE_DESCRIPTOR_SET)
@@ -60,6 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Server::builder()
         .add_service(service)
         .add_service(CalculatorServer::new(calc))
+        .add_service(AdminServer::new(admin))
         .serve(addr)
         .await?;
     Ok(())
