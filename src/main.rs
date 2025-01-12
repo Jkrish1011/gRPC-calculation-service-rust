@@ -19,11 +19,29 @@ impl Calculator for CalculatorService {
         &self,
         request: tonic::Request<proto::CalculationRequest>,
     ) -> Result<tonic::Response<proto::CalculationResponse>, tonic::Status> {
-        println!("Got a request: {:?}", request);
+        println!("Got a Addition request: {:?}", request);
         let input = request.get_ref();
 
         let response: proto::CalculationResponse = proto::CalculationResponse {
             result: input.a + input.b,
+        };
+        Ok(tonic::Response::new(response))
+    }
+
+    async fn divide(
+        &self,
+        request: tonic::Request<proto::CalculationRequest>,
+    ) -> Result<tonic::Response<proto::CalculationResponse>, tonic::Status> {
+        println!("Got a division Request: {:?}", request);
+
+        let input = request.get_ref();
+
+        if input.b == 0 {
+            return Err(tonic::Status::invalid_argument("Division by zero!"));
+        }
+
+        let response: proto::CalculationResponse = proto::CalculationResponse {
+            result: input.a / input.b,
         };
         Ok(tonic::Response::new(response))
     }

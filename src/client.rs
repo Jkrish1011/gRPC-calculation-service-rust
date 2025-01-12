@@ -7,13 +7,14 @@ pub mod proto {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let url = "http://[::1]:50001";
-    let mut client = CalculatorClient::connect(url).await?;
+    let url: &str = "http://[::1]:50001";
+    let mut client: CalculatorClient<tonic::transport::Channel> =
+        CalculatorClient::connect(url).await?;
 
-    let req = proto::CalculationRequest { a: 4, b: 5 };
-    let request = tonic::Request::new(req);
+    let req: proto::CalculationRequest = proto::CalculationRequest { a: 4, b: 5 };
+    let request: tonic::Request<proto::CalculationRequest> = tonic::Request::new(req);
 
-    let response = client.add(request).await?;
+    let response: tonic::Response<proto::CalculationResponse> = client.add(request).await?;
 
     println!("Response: {:?}", response.get_ref().result);
     Ok(())
