@@ -1,7 +1,9 @@
 // Created by the tonic package automatically
 use proto::admin_server::{Admin, AdminServer};
 use proto::calculator_server::{Calculator, CalculatorServer};
+use tonic::metadata::MetadataValue;
 use tonic::transport::Server;
+use tonic::{Request, Status};
 
 mod proto {
     tonic::include_proto!("calculator");
@@ -16,6 +18,7 @@ type State = std::sync::Arc<tokio::sync::RwLock<u64>>;
 struct CalculatorService {
     state: State,
 }
+
 impl CalculatorService {
     async fn increment_counter(&self) {
         let mut count: tokio::sync::RwLockWriteGuard<'_, u64> = self.state.write().await;
@@ -80,6 +83,15 @@ impl Calculator for CalculatorService {
     }
 }
 
+fn check_auth(req: Request<()>) -> Result<Request<()>, Status> {
+    let token: MetadataValue<_> = "Bearer some-secret-token".parse().unwrap();
+
+    match req.metadata().get("authorization") {
+        Some(t) if token == t => Ok(req),
+        _ => Err(Status::unauthenticated("No valid auth token!")),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: std::net::SocketAddr = "[::1]:50001".parse()?;
@@ -100,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Server::builder()
         .add_service(service)
         .add_service(CalculatorServer::new(calc))
-        .add_service(AdminServer::new(admin))
+        .add_service(AdminServer::with_interceptor(admin, check_auth))
         .serve(addr)
         .await?;
     Ok(())

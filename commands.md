@@ -4,6 +4,12 @@
 grpcurl -plaintext -proto ./proto/calculator.proto -d '{"a": 2, "b": 3}' '[::1]:50001' calculator.Calculator.Add
 ```
 
+```
+grpcurl -emit-defaults -plaintext '[::1]:50001' calculator.Admin.GetRequestCount
+
+grpcurl -H "Authorization: Bearer some-secret-token" -emit-defaults -plaintext '[::1]:50001' calculator.Admin.GetRequestCount
+```
+
 #### After adding tonic_reflection
 
 ```
